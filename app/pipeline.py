@@ -103,7 +103,7 @@ async def process_category(category: dict, notify=None) -> RunReport:
         report.fetched += len(items)
         for item in items:
             outcome = await _process_item(
-                item, category, topics, prefilter, min_relevance, examples)
+                item, category, prefilter, min_relevance, examples)
             if outcome is None:
                 report.duplicates += 1
                 continue
@@ -120,7 +120,7 @@ async def process_category(category: dict, notify=None) -> RunReport:
     return report
 
 
-async def _process_item(item: RawItem, category: dict, topics: list[dict],
+async def _process_item(item: RawItem, category: dict,
                         prefilter: Prefilter, min_relevance: int,
                         examples: list[dict] | None = None):
     """Возвращает (status, item_id, analysis) либо None для дубликата."""
