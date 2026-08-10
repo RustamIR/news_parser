@@ -1,0 +1,11 @@
+.env
+*.sqlite3
+*.sqlite3*
+*.session
+*.session-journal
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+.DS_Store
+.claude
