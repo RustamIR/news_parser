@@ -29,9 +29,9 @@ def _view(category: dict) -> str:
 
 @router.callback_query(CatCB.filter(F.action == "settings"))
 async def cb_settings(call: CallbackQuery, callback_data: CatCB) -> None:
+    await call.answer()
     category = await repo.get_category(callback_data.cat_id)
     await safe_edit(call, _view(category), settings_menu(category))
-    await call.answer()
 
 
 @router.callback_query(SetCB.filter())
@@ -55,6 +55,6 @@ async def cb_apply_setting(call: CallbackQuery, callback_data: SetCB,
         await repo.update_category(cid, autosend=new_value)
         note = "Мгновенная отправка включена" if new_value else "Только по дайджесту"
 
+    await call.answer(note)
     category = await repo.get_category(cid)
     await safe_edit(call, _view(category), settings_menu(category))
-    await call.answer(note)

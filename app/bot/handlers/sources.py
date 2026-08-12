@@ -41,13 +41,17 @@ async def _render(call: CallbackQuery, cat_id: int) -> None:
 
 @router.callback_query(SrcCB.filter(F.action.in_({"list", "toggle", "delete"})))
 async def cb_sources(call: CallbackQuery, callback_data: SrcCB) -> None:
+    # Спиннер на кнопке крутится до answerCallbackQuery, поэтому отвечаем
+    # сразу после быстрой записи в БД, а медленную правку шлём следом.
     if callback_data.action == "toggle":
         await repo.toggle_source(callback_data.src_id)
+        await call.answer()
     elif callback_data.action == "delete":
         await repo.delete_source(callback_data.src_id)
         await call.answer("Источник удалён")
+    else:
+        await call.answer()
     await _render(call, callback_data.cat_id)
-    await call.answer()
 
 
 @router.callback_query(SrcCB.filter(F.action == "add"))
@@ -55,8 +59,8 @@ async def cb_add_source(call: CallbackQuery, callback_data: SrcCB,
                         state: FSMContext) -> None:
     await state.set_state(AddSource.waiting_input)
     await state.update_data(cat_id=callback_data.cat_id)
-    await safe_edit(call, ADD_PROMPT, cancel_kb(callback_data.cat_id))
     await call.answer()
+    await safe_edit(call, ADD_PROMPT, cancel_kb(callback_data.cat_id))
 
 
 @router.message(AddSource.waiting_input, F.text)

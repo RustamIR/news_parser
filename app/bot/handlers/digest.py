@@ -26,19 +26,19 @@ async def cb_digest(call: CallbackQuery, callback_data: CatCB) -> None:
 
     header = f"<b>{texts.category_title(category)} — дайджест за сутки</b>"
     if not items:
+        await call.answer()
         await safe_edit(
             call,
             f"{header}\n\nПодходящих новостей пока нет.\n"
             "Попробуйте «🔄 Проверить сейчас» или ослабьте порог в настройках.",
             back_to_category(cat_id),
         )
-        await call.answer()
         return
 
+    await call.answer()
     await safe_edit(call, f"{header}\n\nНиже {len(items)} материалов:",
                     back_to_category(cat_id))
     await _send_items(call.message, items, category)
-    await call.answer()
 
 
 @router.message(Command("digest"))

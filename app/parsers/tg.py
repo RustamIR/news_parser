@@ -42,10 +42,37 @@ class TelegramCollector:
     def available(self) -> bool:
         """Клиент реально подключён и умеет читать каналы.
 
-        Именно это должно решать, каким транспортом читать канал: ключи могут
-        быть на месте, а сессия — просроченной или ботовой.
+        Проверяем именно соединение: объект клиента живёт и после обрыва, а
+        запросы через него падают с «Cannot send requests while disconnected».
         """
-        return self._client is not None
+        return self._client is not None and self._client.is_connected()
+
+    async def ensure_connected(self) -> bool:
+        """Поднимает соединение перед опросом, если оно отвалилось.
+
+        Telethon переподключается сам, но после исчерпания попыток (ноутбук
+        ушёл в сон, сеть пропала надолго) сдаётся и остаётся отключённым.
+        Тогда каждый опрос падал бы до перезапуска бота.
+        """
+        if self._client is None:
+            return False
+        if self._client.is_connected():
+            return True
+
+        log.warning("Telethon отключился — переподключаюсь")
+        try:
+            await self._client.connect()
+        except Exception as e:
+            log.error("Telethon не переподключился: %s", e)
+            return False
+
+        if not await self._client.is_user_authorized():
+            log.error("Сессия Telethon больше не авторизована — "
+                      "перезапустите login_telegram.py")
+            return False
+
+        log.info("Telethon переподключён")
+        return True
 
     async def start(self) -> None:
         if not self.configured:

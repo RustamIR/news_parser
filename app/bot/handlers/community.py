@@ -225,8 +225,8 @@ async def cb_bind_channel(call: CallbackQuery, callback_data: CatCB,
         f"Админство обязательно: в каналы Telegram посторонним писать не даёт.\n\n"
         f"Чтобы отвязать, отправьте <code>-</code>."
     )
-    await safe_edit(call, body, cancel_kb(callback_data.cat_id))
     await call.answer()
+    await safe_edit(call, body, cancel_kb(callback_data.cat_id))
 
 
 @router.message(BindChannel.waiting_channel)

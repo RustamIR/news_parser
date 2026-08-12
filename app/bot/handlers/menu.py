@@ -81,16 +81,16 @@ async def cmd_help(message: Message) -> None:
 @router.callback_query(MenuCB.filter(F.action == "help"))
 async def cb_help(call: CallbackQuery) -> None:
     categories = await repo.list_categories()
-    await safe_edit(call, texts.HELP, main_menu(categories))
     await call.answer()
+    await safe_edit(call, texts.HELP, main_menu(categories))
 
 
 @router.callback_query(MenuCB.filter(F.action == "main"))
 async def cb_main(call: CallbackQuery, state: FSMContext) -> None:
     await state.clear()
     categories = await repo.list_categories()
-    await safe_edit(call, _greeting(), main_menu(categories))
     await call.answer()
+    await safe_edit(call, _greeting(), main_menu(categories))
 
 
 @router.callback_query(CatCB.filter(F.action == "open"))
@@ -101,9 +101,9 @@ async def cb_open_category(call: CallbackQuery, callback_data: CatCB,
     if not category:
         await call.answer("Рубрика не найдена", show_alert=True)
         return
+    await call.answer()
     text, markup = await _category_view(category, call.message.chat.id)
     await safe_edit(call, text, markup)
-    await call.answer()
 
 
 @router.callback_query(CatCB.filter(F.action == "sub"))
@@ -117,19 +117,19 @@ async def cb_toggle_subscription(call: CallbackQuery, callback_data: CatCB) -> N
         await repo.subscribe(chat_id, cid)
         note = "Новости будут приходить сюда"
 
+    await call.answer(note)
     category = await repo.get_category(cid)
     text, markup = await _category_view(category, chat_id)
     await safe_edit(call, text, markup)
-    await call.answer(note)
 
 
 @router.callback_query(CatCB.filter(F.action == "stats"))
 async def cb_stats(call: CallbackQuery, callback_data: CatCB) -> None:
     category = await repo.get_category(callback_data.cat_id)
     data = await repo.stats(callback_data.cat_id)
+    await call.answer()
     await safe_edit(call, texts.format_stats(category, data),
                     back_to_category(callback_data.cat_id))
-    await call.answer()
 
 
 @router.message(Command("stats"))
@@ -173,13 +173,13 @@ async def cmd_run(message: Message, scheduler: ParserScheduler) -> None:
 @router.callback_query(MenuCB.filter(F.action == "new_category"))
 async def cb_new_category(call: CallbackQuery, state: FSMContext) -> None:
     await state.set_state(AddCategory.waiting_title)
+    await call.answer()
     await safe_edit(
         call,
         "Название новой рубрики (можно с эмодзи в начале).\n\n"
         "Например: <code>🚀 Космос и запуски</code>",
         None,
     )
-    await call.answer()
 
 
 @router.message(AddCategory.waiting_title, F.text)

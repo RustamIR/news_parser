@@ -31,13 +31,16 @@ async def _render(call: CallbackQuery, cat_id: int) -> None:
 
 @router.callback_query(TopicCB.filter(F.action.in_({"list", "toggle", "delete"})))
 async def cb_topics(call: CallbackQuery, callback_data: TopicCB) -> None:
+    # Отвечаем до правки сообщения — иначе кнопка «грузится» весь round trip.
     if callback_data.action == "toggle":
         await repo.toggle_topic(callback_data.topic_id)
+        await call.answer()
     elif callback_data.action == "delete":
         await repo.delete_topic(callback_data.topic_id)
         await call.answer("Тема удалена")
+    else:
+        await call.answer()
     await _render(call, callback_data.cat_id)
-    await call.answer()
 
 
 # --------------------------------------------------------------------------- #
@@ -46,13 +49,13 @@ async def cb_add_topic(call: CallbackQuery, callback_data: TopicCB,
                        state: FSMContext) -> None:
     await state.set_state(AddTopic.waiting_title)
     await state.update_data(cat_id=callback_data.cat_id)
+    await call.answer()
     await safe_edit(
         call,
         "<b>Шаг 1 из 4.</b> Название темы одной строкой.\n\n"
         "Например: <code>Утечки персональных данных в РФ</code>",
         cancel_kb(callback_data.cat_id),
     )
-    await call.answer()
 
 
 @router.message(AddTopic.waiting_title, F.text)

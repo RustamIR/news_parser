@@ -29,6 +29,7 @@ class RunReport:
     skipped: int = 0          # не прошли предфильтр
     rejected: int = 0         # модель сочла нерелевантным
     relevant: int = 0
+    resent: int = 0           # досланы из прошлых проходов
     errors: list[str] = None
 
     def __post_init__(self) -> None:
@@ -41,6 +42,8 @@ class RunReport:
             f"мимо тем: {self.skipped} · отсеяно анализом: {self.rejected}",
             f"<b>в дайджест: {self.relevant}</b>",
         ]
+        if self.resent:
+            lines.append(f"дослано из прошлых проходов: {self.resent}")
         if self.errors:
             lines.append("\n⚠️ " + "\n⚠️ ".join(self.errors[:5]))
         return "\n".join(lines)
@@ -53,12 +56,18 @@ async def collect_source(source: dict) -> list[RawItem]:
     поднят, иначе через публичную витрину t.me/s/. Так источник не ломается,
     когда сессия протухла, и сам начинает читаться полноценно, когда её починят.
     """
-    if source["kind"] == "tg" and tg_collector.available:
+    if source["kind"] == "tg" and await tg_collector.ensure_connected():
         items, last_id = await tg_collector.fetch(source)
         await repo.mark_source_checked(source["id"], last_id)
         return items
 
     if source["kind"] == "tg":
+        # У закрытого канала витрины нет — подменять транспорт бессмысленно.
+        if source["url"].lstrip("-").isdigit():
+            raise RuntimeError(
+                "закрытый канал читается только через Telethon, "
+                "а соединение сейчас недоступно"
+            )
         items = await web_collector.fetch({**source, "kind": "tgweb"})
     else:
         items = await web_collector.fetch(source)
@@ -89,6 +98,12 @@ async def process_category(category: dict, notify=None) -> RunReport:
     examples = await repo.learning_examples(category["id"])
     # Канал рубрики в сообществе плюс те, кто подписался в личке.
     targets = await repo.destinations(category) if notify else []
+
+    # Досылаем то, что прошло фильтр раньше, но не было отправлено: сбой сети,
+    # перезапуск на середине прохода или разбор без включённой рассылки.
+    # Иначе такие новости остаются в базе навсегда и до чата не доходят.
+    if notify and targets:
+        report.resent = await _deliver_pending(notify, targets, category)
 
     for source in sources:
         try:
@@ -169,6 +184,47 @@ async def _process_item(item: RawItem, category: dict,
         impact=analysis.impact,
     )
     return status, item_id, analysis
+
+
+# За один проход досылаем не больше этого — чтобы после долгого простоя
+# в чат не вывалилась вся накопленная очередь разом.
+MAX_RESEND_PER_RUN = 10
+
+
+async def _deliver_pending(notify, targets: list[int], category: dict) -> int:
+    """Отправляет новости, прошедшие фильтр, но так и не доставленные."""
+    pending = await repo.digest(category["id"], limit=MAX_RESEND_PER_RUN,
+                                only_unsent=True)
+    sent = 0
+    for row in pending:
+        payload = {
+            "item_id": row["id"],
+            "title": row["title"],
+            "url": row["url"],
+            "summary": row["summary"],
+            "impact": row["impact"],
+            "relevance": row["relevance"],
+            "topic_name": row["topic_name"],
+            "tags": row["tags"],
+            "engine": row["engine"],
+            "category": f"{category['emoji']} {category['title']}",
+        }
+        delivered = False
+        for chat_id in targets:
+            try:
+                await notify(chat_id, payload)
+                delivered = True
+            except Exception as e:
+                log.warning("Не удалось дослать новость %s в чат %s: %s",
+                            row["id"], chat_id, e)
+            await asyncio.sleep(0.4)
+        if delivered:
+            await repo.set_item_status(row["id"], "sent")
+            sent += 1
+    if sent:
+        log.info("%s: дослано %d новостей из прошлых проходов",
+                 category["title"], sent)
+    return sent
 
 
 async def _broadcast(notify, chat_ids: list[int], item_id: int, item: RawItem,

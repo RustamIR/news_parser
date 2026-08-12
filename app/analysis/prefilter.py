@@ -86,7 +86,7 @@ class TextIndex:
             window = self.tokens[i:i + span]
             if all(
                 (tok.startswith(exp) if prefix else tok == exp)
-                for tok, (exp, prefix) in zip(window, pattern)
+                for tok, (exp, prefix) in zip(window, pattern, strict=True)
             ):
                 return True
         return False

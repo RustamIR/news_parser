@@ -6,6 +6,7 @@
 """
 from __future__ import annotations
 
+from contextlib import suppress
 from html import escape
 
 from aiogram import Router
@@ -46,11 +47,9 @@ async def cb_feedback(call: CallbackQuery, callback_data: FeedbackCB) -> None:
     mark = "👍 учту: такое нужно" if callback_data.verdict > 0 else "👎 учту: такое мимо"
     await call.answer(mark)
     # Кнопки убираем — оценка учтена, повторно жать незачем.
-    try:
+    # Сообщение уже отредактировано или слишком старое — не наша забота.
+    with suppress(TelegramBadRequest):
         await call.message.edit_reply_markup(reply_markup=None)
-    except TelegramBadRequest:
-        # Сообщение уже отредактировано или слишком старое — не наша забота.
-        pass
 
 
 RATERS_HELP = (

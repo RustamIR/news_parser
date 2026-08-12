@@ -2,7 +2,8 @@
 from __future__ import annotations
 
 import json
-from typing import Any, Iterable
+from collections.abc import Iterable
+from typing import Any
 
 import aiosqlite
 
@@ -381,7 +382,8 @@ async def feedback_stats(category_id: int) -> dict:
         (category_id,),
     ) as cur:
         row = await cur.fetchone()
-    return {k: row[k] for k in row.keys()}
+    # Row при итерации отдаёт значения, а не ключи — .keys() обязателен
+    return {k: row[k] for k in row.keys()}  # noqa: SIM118
 
 
 async def disliked_tags(category_id: int, limit: int = 10) -> list[tuple[str, int]]:
@@ -440,7 +442,8 @@ async def stats(category_id: int) -> dict:
         (category_id,),
     ) as cur:
         row = await cur.fetchone()
-    return {k: (row[k] or 0) for k in row.keys()}
+    # Row при итерации отдаёт значения, а не ключи — .keys() обязателен
+    return {k: (row[k] or 0) for k in row.keys()}  # noqa: SIM118
 
 
 # --------------------------------------------------------------------------- #

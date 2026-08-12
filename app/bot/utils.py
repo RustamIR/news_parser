@@ -95,7 +95,7 @@ async def prepare_source(raw: str) -> tuple[str, str, str, str]:
     kind, url = detected
     if kind == "tg":
         if not tg_collector.available:
-            if url.startswith("http") or url.startswith("-100"):
+            if url.startswith(("http", "-100")):
                 return "", "", "", ("закрытый канал читается только через Telethon — "
                                     "сейчас он не поднят")
             return "tg", url, "", ""
