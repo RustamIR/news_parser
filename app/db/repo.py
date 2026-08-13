@@ -127,6 +127,14 @@ async def add_source(category_id: int, kind: str, url: str, title: str = "") -> 
         return None
 
 
+async def count_items(source_id: int) -> int:
+    """Сколько разобранных постов пропадёт вместе с источником (каскад)."""
+    async with db.conn.execute(
+        "SELECT COUNT(*) n FROM items WHERE source_id = ?", (source_id,)
+    ) as cur:
+        return (await cur.fetchone())["n"]
+
+
 async def delete_source(source_id: int) -> None:
     await db.conn.execute("DELETE FROM sources WHERE id = ?", (source_id,))
     await db.conn.commit()

@@ -78,6 +78,15 @@ https://www.anti-malware.ru/news
 · <code>персональные данные</code> — фраза, тоже по основам
 · <code>стоп</code> отбрасывает пост, даже если ключевые совпали
 
+<b>Режим</b>
+По умолчанию форма <b>дополняет</b>: новые источники и слова добавляются, \
+старые остаются. Строка <code>режим: замена</code> включает перезапись — \
+в рубрике останется ровно то, что в тексте, а остальное будет удалено.
+
+⚠️ При замене удаление источника уносит и все разобранные с него посты.
+Готовые формы с текущими настройками: <code>/form ИБ</code> — они уже идут \
+с <code>режим: замена</code>, чтобы правку можно было отправить назад как есть.
+
 Если <code>тема</code> не указана, а ключевые слова есть — они добавятся \
 к единственной теме рубрики. Когда тем несколько, название обязательно.
 """
@@ -105,6 +114,7 @@ async def render_editable(category: dict) -> list[str]:
 
     head = [f"рубрика: {category['key']}"]
     if sources:
+        head.append("режим: замена")
         head.append("источники:")
         head += [_source_line(s) for s in sources]
     blocks.append("\n".join(head))
@@ -280,6 +290,7 @@ async def _apply_sources(category: dict, form: FormData) -> list[str]:
     from app.bot.texts import KIND_ICONS
 
     added, skipped, bad, limited = [], [], [], False
+    keep: set[tuple[str, str]] = set()
     for raw in form.sources:
         kind, url, title, error = await prepare_source(raw)
         if error:
@@ -287,14 +298,29 @@ async def _apply_sources(category: dict, form: FormData) -> list[str]:
             # без экранирования угловые скобки ломают отправку сообщения.
             bad.append(f"{escape(raw)} — {escape(error)}")
             continue
+        keep.add((kind, url))
         limited = limited or (kind == "tg" and tg_reading_limited())
         source_id = await repo.add_source(category["id"], kind, url, title)
         (added if source_id else skipped).append(
             f"{KIND_ICONS[kind]} {escape(url)}")
 
+    removed: list[str] = []
+    if form.replace:
+        # Правка скопированной формы: чего нет в списке — того нет и в рубрике.
+        # Разбирать нечего только при пустом списке, но тогда сюда не доходим.
+        for s in await repo.list_sources(category["id"]):
+            if (s["kind"], s["url"]) in keep:
+                continue
+            lost = await repo.count_items(s["id"])
+            await repo.delete_source(s["id"])
+            tail = f" (и {lost} разобранных постов)" if lost else ""
+            removed.append(f"{KIND_ICONS.get(s['kind'], '•')} {escape(s['url'])}{tail}")
+
     block = []
     if added:
         block.append("✅ Источники добавлены:\n" + "\n".join(added))
+    if removed:
+        block.append("🗑 Источники удалены:\n" + "\n".join(removed))
     if skipped:
         block.append("↩️ Уже были:\n" + "\n".join(skipped))
     if bad:
